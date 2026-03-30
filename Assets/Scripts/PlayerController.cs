@@ -1,19 +1,22 @@
 using System.Collections;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.Rendering;
 
 public class PlayerController : MonoBehaviour
 {
     public float speed = 5f;
+    public Transform focalPoint;
 
     private Rigidbody rb;
+    private Coroutine countdownRoutine;
 
     private InputAction moveAction;
     private InputAction smashAction;
     private InputAction breakAction;
 
+    public bool hasPowerUp = false;
 
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Awake()
     {
         rb = GetComponent<Rigidbody>();
@@ -22,9 +25,59 @@ public class PlayerController : MonoBehaviour
         breakAction = InputSystem.actions.FindAction("Break");
     }
 
-    // Update is called once per frame
     void Update()
     {
+        var move = moveAction.ReadValue<Vector2>();
+        rb.AddForce(move.y * speed * focalPoint.forward);
+        rb.AddForce(move.x * speed * focalPoint.right);
+        if (breakAction.IsPressed())
+        {
+            rb.linearVelocity = Vector3.zero;
+        }
+    }
 
+    private void OnCollisionEnter(Collision collision)
+    {
+        if (collision.gameObject.CompareTag("Enemy"))
+        {
+            if (!hasPowerUp)
+            {
+                var rb = collision.gameObject.GetComponent<Rigidbody>();
+                var dir = collision.transform.position - transform.position;
+                rb.AddForce(100 * Vector3.up, ForceMode.Impulse);
+            }
+        }
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (other.CompareTag("PowerUp"))
+        {
+            hasPowerUp = true;
+            Destroy(other.gameObject);
+
+            if (countdownRoutine != null)
+            {
+                StopCoroutine(countdownRoutine);
+            }
+            StartCoroutine(PowerUpCountDown());
+        }
+
+        if (other.CompareTag("StunPowerUp"))
+        {
+            Destroy(other.gameObject);
+
+            Enemy[] allEnemies = FindObjectsByType<Enemy>(FindObjectsSortMode.None);
+            foreach (Enemy enemy in allEnemies)
+            {
+                enemy.Stun(5f);
+            }
+        }
+    }
+
+    IEnumerator PowerUpCountDown()
+    {
+        yield return new WaitForSeconds(10f);
+        hasPowerUp = false;
     }
 }
